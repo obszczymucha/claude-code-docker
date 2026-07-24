@@ -1,0 +1,38 @@
+services:
+  claude-code:
+    build: .
+    user: node
+    stdin_open: true
+    tty: true
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    environment:
+      - ANTHROPIC_API_KEY
+      - COLORTERM=truecolor
+      - CLAUDE_CODE_IDE_HOST_OVERRIDE=host.docker.internal
+    working_dir: ${PWD}
+    volumes:
+      - ${PWD}:${PWD}
+      - ~/.claude:/home/node/.claude
+      - ~/.claude.json:/home/node/.claude.json
+      - /data/claude-code/tmp:/tmp
+      - /home/alien/.projects/ops/claude-code-docker:/claude-code-docker
+    depends_on:
+      - netsync-mcp
+
+  # Host bridge: netsync MCP server + Neovim IDE proxy. Needs network_mode:
+  # host to bind the real 127.0.0.1/docker-bridge IP and reach the Neovim
+  # websocket on host loopback. See host/README.md.
+  netsync-mcp:
+    image: python:3.11-slim
+    network_mode: host
+    restart: unless-stopped
+    user: "1000:1000"
+    environment:
+      - PATH=/usr/local/bin:/usr/bin:/bin:/host/bin
+      - HOME=/root
+    volumes:
+      - ./host/netsync-mcp.py:/netsync-mcp.py:ro
+      - ~/.claude:/root/.claude
+      - /usr/local/bin:/host/bin:ro
+    command: ["python3", "/netsync-mcp.py"]
