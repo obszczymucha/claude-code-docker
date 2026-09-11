@@ -32,6 +32,8 @@ RUN case "$(uname -m)" in \
  && chmod +x /usr/local/bin/lua-language-server \
  && lua-language-server --version
 USER node
-RUN curl -fsSL https://claude.ai/install.sh | bash
+RUN curl -fsSL https://claude.ai/install.sh | bash \
+ && /home/node/.local/bin/claude update \
+ && /home/node/.local/bin/claude --version
 WORKDIR /workspace
 ENTRYPOINT ["/home/node/.local/bin/claude"]
