@@ -17,6 +17,12 @@ services:
       - ~/.claude.json:/home/node/.claude.json
       - /data/claude-code/tmp:/tmp
       - /home/alien/.projects/ops/claude-code-docker:/claude-code-docker
+      # `claude update` drops a new binary in versions/ and repoints the
+      # bin/claude symlink at it. Both are in the image, so without these
+      # named volumes every update dies with the container. Named (not bind)
+      # mounts so Docker seeds them from the image on first use.
+      - claude-cli-bin:/home/node/.local/bin
+      - claude-cli-versions:/home/node/.local/share/claude
     depends_on:
       - netsync-mcp
 
@@ -36,3 +42,7 @@ services:
       - ~/.claude:/root/.claude
       - /usr/local/bin:/host/bin:ro
     command: ["python3", "/netsync-mcp.py"]
+
+volumes:
+  claude-cli-bin:
+  claude-cli-versions:

@@ -34,20 +34,59 @@ uses a stock `python:3.11-slim` image and never needs rebuilding.
 - **You changed the `Dockerfile`** — `./run.sh build claude-code`. Docker
   reuses cached layers above the edit, so adding a tool to the last `RUN`
   costs seconds.
-- **You want a newer Claude Code CLI** — the CLI is installed at build time
-  by the last `RUN` layer, which stays cached forever otherwise. Force it:
+- **You want a newer Claude Code CLI** — no rebuild. Just run `claude
+  update` inside a session; it persists (see
+  [Persisting CLI updates](#persisting-cli-updates)).
+- **You want newer system packages** — the whole image is one long-lived
+  cache. Force it:
 
   ```sh
   ./run.sh build --no-cache claude-code
   ```
 
-  This also re-runs `apt-get update`, so system packages come along.
+  This re-runs `apt-get update` and reinstalls the CLI, but the freshly
+  built CLI is shadowed by the volume holding the updated one — drop the
+  volumes too if you want the image's copy back.
 - **You changed `docker-compose.yaml` or `run.sh`** — no rebuild needed, the
   next `./run.sh run` picks it up.
 
 Nothing in the image holds state worth keeping: `~/.claude`,
 `~/.claude.json`, and the working directory are all bind mounts from the
-host, so rebuilding is always safe.
+host, and the CLI itself lives in named volumes, so rebuilding is always
+safe.
+
+## Persisting CLI updates
+
+`claude update` writes a new binary to
+`~/.local/share/claude/versions/<version>` and repoints the
+`~/.local/bin/claude` symlink at it. Both paths come from the image, so with
+`run --rm` every update would be thrown away with the container. Two named
+volumes keep them:
+
+```yaml
+- claude-cli-bin:/home/node/.local/bin
+- claude-cli-versions:/home/node/.local/share/claude
+```
+
+These are *named* volumes, not host bind mounts, on purpose: Docker seeds a
+named volume from the image's contents the first time it is created, so the
+CLI baked in by the `Dockerfile` is there on the very first run. A bind
+mount would instead shadow that directory with an empty one and the
+entrypoint would not exist.
+
+The trade-off is that the volume wins from then on — a `--no-cache` rebuild
+installs a new CLI into the image that nothing will ever execute. To go back
+to the image's copy, delete the volumes and let them re-seed:
+
+```sh
+docker volume rm claude-code-docker_claude-cli-bin \
+                 claude-code-docker_claude-cli-versions
+```
+
+(Compose prefixes volume names with the project name, which defaults to the
+directory name.) In normal use this never comes up: `claude update` is the
+upgrade path, and old versions accumulate in the volume until you prune them
+by hand.
 
 ### Bumping lua-language-server
 
@@ -88,6 +127,9 @@ profile, which `sh -c` does not read.
   lives in `/opt/lua-language-server`, which is root-owned; the wrapper
   redirects the server's `log/` and `meta/` writes to
   `$HOME/.cache/lua-language-server` so it works as the non-root `node` user.
+- `~/.local/state/claude` is deliberately *not* persisted. It only holds
+  lock files, and a lock left behind by a container that was killed would
+  outlive the process it guarded.
 - The build downloads from `claude.ai` and `github.com`, so it needs network
   access — a `docker build` behind a proxy needs the usual `HTTP_PROXY` build
   args.
