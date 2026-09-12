@@ -10,6 +10,7 @@ RUN apt-get update \
     python3 \
     python3-pip \
     jq \
+    rsync \
  && rm -rf /var/lib/apt/lists/* \
  && update-alternatives --set lua-interpreter /usr/bin/lua5.4 \
  && update-alternatives --set lua-compiler /usr/bin/luac5.4
