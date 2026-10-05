@@ -7,7 +7,8 @@ netsync MCP server and the Neovim IDE websocket — see
 [`host/README.md`](host/README.md)).
 
 The image is `node:20-slim` plus the tooling Claude Code needs on `PATH`:
-git, ripgrep, curl, jq, python3, lua5.4 + luarocks, and
+git, ripgrep, curl, jq, rsync, tmux, python3, lua5.4 + luarocks, a Rust
+toolchain (rustup, minimal profile), and
 [lua-language-server](https://github.com/LuaLS/lua-language-server).
 
 ## Rebuild
@@ -127,6 +128,10 @@ profile, which `sh -c` does not read.
   lives in `/opt/lua-language-server`, which is root-owned; the wrapper
   redirects the server's `log/` and `meta/` writes to
   `$HOME/.cache/lua-language-server` so it works as the non-root `node` user.
+- `~/.cargo/registry` (crate downloads) lives in the `cargo-registry` named
+  volume so crates.io isn't refetched every session. The `Dockerfile`
+  pre-creates the directory so the volume is seeded owned by `node`. Wipe it
+  with `docker volume rm claude-code-docker_cargo-registry`.
 - `~/.local/state/claude` is deliberately *not* persisted. It only holds
   lock files, and a lock left behind by a container that was killed would
   outlive the process it guarded.

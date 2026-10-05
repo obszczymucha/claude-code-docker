@@ -23,6 +23,8 @@ services:
       # mounts so Docker seeds them from the image on first use.
       - claude-cli-bin:/home/node/.local/bin
       - claude-cli-versions:/home/node/.local/share/claude
+      # Crate downloads, so each `run --rm` doesn't refetch from crates.io.
+      - cargo-registry:/home/node/.cargo/registry
     depends_on:
       - netsync-mcp
 
@@ -46,3 +48,4 @@ services:
 volumes:
   claude-cli-bin:
   claude-cli-versions:
+  cargo-registry:
