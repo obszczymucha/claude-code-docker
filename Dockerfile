@@ -1,21 +1,33 @@
-FROM node:20-slim
+FROM archlinux:latest
 ARG LUA_LS_VERSION=3.19.1
-RUN apt-get update \
- && apt-get install -y \
+
+# Add whatever tools you want to give claude.
+RUN pacman -Syu --noconfirm --needed \
     git \
     ripgrep \
     curl \
-    lua5.4 \
+    lua \
     luarocks \
-    python3 \
-    python3-pip \
+    python \
+    python-pip \
     jq \
     rsync \
     tmux \
     gcc \
- && rm -rf /var/lib/apt/lists/* \
- && update-alternatives --set lua-interpreter /usr/bin/lua5.4 \
- && update-alternatives --set lua-compiler /usr/bin/luac5.4
+    nodejs \
+    npm \
+    clang \
+    odin \
+    libx11 libxrandr libxinerama libxcursor libxi \
+    mesa mesa-utils \
+    xorg-server-xvfb xorg-xdpyinfo \
+    imagemagick \
+    binutils \
+    unzip \
+ && pacman -Scc --noconfirm \
+ && useradd -m -u 1000 node \
+ && odin version
+
 # lua-language-server: prebuilt release tarball extracts flat, so give it its
 # own dir. The wrapper redirects log/meta writes into $HOME/.cache, keeping
 # /opt read-only for the node user.
@@ -34,16 +46,23 @@ RUN case "$(uname -m)" in \
     > /usr/local/bin/lua-language-server \
  && chmod +x /usr/local/bin/lua-language-server \
  && lua-language-server --version
+
+# Software GL via Mesa llvmpipe; DISPLAY stays unset (agent runs its own Xvfb).
+ENV LIBGL_ALWAYS_SOFTWARE=1 \
+    MESA_GL_VERSION_OVERRIDE=4.6
+
 USER node
 RUN curl -fsSL https://claude.ai/install.sh | bash \
  && /home/node/.local/bin/claude update \
  && /home/node/.local/bin/claude --version
-# Rust via rustup into ~/.cargo; links with the apt gcc above. registry/ is
+
+# Rust via rustup into ~/.cargo; links with the pacman gcc above. registry/ is
 # pre-created so the cargo-registry volume is seeded node-owned, not root.
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
     | sh -s -- -y --profile minimal \
  && /home/node/.cargo/bin/cargo --version \
  && mkdir /home/node/.cargo/registry
 ENV PATH=/home/node/.cargo/bin:$PATH
+
 WORKDIR /workspace
 ENTRYPOINT ["/home/node/.local/bin/claude"]
