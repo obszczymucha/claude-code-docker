@@ -1,7 +1,8 @@
 # claude-code-docker
 
 Runs the Claude Code CLI in a container that can only touch explicitly mounted
-directories: the current directory, `~/.claude`, and `~/.claude.json`.
+directories: the current directory, `~/.claude`, `~/.claude.json`, and any extra
+mounts defined in the `.claude-code-extra-mounts` file.
 
 Edit the `Dockerfile` to add or remove tools as needed.
 
@@ -41,8 +42,8 @@ docker compose build --no-cache claude-code    # newer system packages
 
 ## CLI updates
 
-Run `claude update` inside a session. The CLI lives in named volumes, so updates
-persist and rebuilds don't replace it. To go back to the image's copy:
+The Claude CLI lives in a Docker volume, so its auto-updates persist across
+sessions. To reset it to the image's copy:
 
 ```sh
 docker volume rm claude-code-docker_claude-cli-bin \
