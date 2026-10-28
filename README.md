@@ -35,8 +35,8 @@ whether it can see `shared-lib`.
 
 ## claude-code-docker-img-bridge
 
-Claude Code can't display images, so Claude shows them in a tmux popup on the
-host instead. `/data/claude-code/.images` is mounted at the same path in the
+Claude Code can't display images, so Claude shows them in a floating feh window
+on the host instead. `/data/claude-code/.images` is mounted at the same path in the
 container. Claude copies an image there and writes its file name into the
 `.show` FIFO. The host's `claude-code-docker-img-bridge` user service only
 opens regular files inside that directory, so the container can't run anything

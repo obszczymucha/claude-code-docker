@@ -16,11 +16,14 @@ services:
       - ~/.claude:/home/node/.claude
       - ~/.claude.json:/home/node/.claude.json
       - /data/claude-code/tmp:/tmp
-      # claude-code-docker-img-bridge share dir (host FIFO listener → tmux
-      # popup). Same path both sides so names written to .show resolve
+      # claude-code-docker-img-bridge share dir (host FIFO listener → floating
+      # feh window). Same path both sides so names written to .show resolve
       # identically. Install/uninstall:
       # arch-bootstrap tasks/claude-code-docker-img-bridge{,-uninstall}.yml
       - /data/claude-code/.images:/data/claude-code/.images
+      # Managed-policy CLAUDE.md: loaded in every session regardless of the
+      # working directory, unlike a project CLAUDE.md.
+      - /home/alien/.projects/ops/claude-code-docker/CLAUDE.md:/etc/claude-code/CLAUDE.md:ro
       - /home/alien/.projects/ops/claude-code-docker:/claude-code-docker
       # `claude update` drops a new binary in versions/ and repoints the
       # bin/claude symlink at it. Both are in the image, so without these
