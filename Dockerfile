@@ -24,6 +24,7 @@ RUN pacman -Syu --noconfirm --needed \
     imagemagick \
     binutils \
     unzip \
+    jdk17-openjdk \
  && pacman -Scc --noconfirm \
  && useradd -m -u 1000 node \
  && odin version
@@ -46,6 +47,28 @@ RUN case "$(uname -m)" in \
     > /usr/local/bin/lua-language-server \
  && chmod +x /usr/local/bin/lua-language-server \
  && lua-language-server --version
+
+# Android: Arch's gradle is 9.x (needs JDK 21), so pin an 8.x zip. SDK is
+# node-owned so AGP can fetch extra components it wants at build time.
+# ponytail: Google ships SDK build-tools for x86_64 only; arm64 hosts won't build APKs.
+ARG GRADLE_VERSION=8.14.3
+ARG ANDROID_CMDLINE_TOOLS=13114758
+# JAVA_HOME explicit: archlinux-java's /usr/lib/jvm/default link isn't set up in the image.
+ENV ANDROID_HOME=/opt/android-sdk \
+    JAVA_HOME=/usr/lib/jvm/java-17-openjdk
+ENV PATH=$JAVA_HOME/bin:/opt/gradle/bin:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH
+RUN curl -fsSLo /tmp/gradle.zip "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
+ && unzip -q /tmp/gradle.zip -d /opt \
+ && mv "/opt/gradle-${GRADLE_VERSION}" /opt/gradle \
+ && curl -fsSLo /tmp/cmdline-tools.zip "https://dl.google.com/android/repository/commandlinetools-linux-${ANDROID_CMDLINE_TOOLS}_latest.zip" \
+ && mkdir -p "$ANDROID_HOME/cmdline-tools" \
+ && unzip -q /tmp/cmdline-tools.zip -d "$ANDROID_HOME/cmdline-tools" \
+ && mv "$ANDROID_HOME/cmdline-tools/cmdline-tools" "$ANDROID_HOME/cmdline-tools/latest" \
+ && rm /tmp/gradle.zip /tmp/cmdline-tools.zip \
+ && yes | sdkmanager --licenses >/dev/null \
+ && sdkmanager --install "platform-tools" "platforms;android-35" "build-tools;35.0.0" \
+ && chown -R node:node "$ANDROID_HOME" \
+ && java -version && javac -version && gradle --version && adb version
 
 # Software GL via Mesa llvmpipe; DISPLAY stays unset (agent runs its own Xvfb).
 ENV LIBGL_ALWAYS_SOFTWARE=1 \
