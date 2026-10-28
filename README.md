@@ -33,6 +33,29 @@ This mounts `~/.projects/shared-lib` at the same path inside the container, and
 `~/notes` read-only at `/notes`. To check, run `claude-docker.sh` and ask Claude
 whether it can see `shared-lib`.
 
+## claude-code-docker-img-bridge
+
+Claude Code can't display images, so Claude shows them in a tmux popup on the
+host instead. `/data/claude-code/.images` is mounted at the same path in the
+container. Claude copies an image there and writes its file name into the
+`.show` FIFO. The host's `claude-code-docker-img-bridge` user service only
+opens regular files inside that directory, so the container can't run anything
+on the host.
+
+The host side is managed by `arch-bootstrap`:
+
+```sh
+# install, before starting the container
+./run.sh --tags claude-code-docker-img-bridge
+# uninstall
+./run.sh --tags claude-code-docker-img-bridge-uninstall
+```
+
+Install first: if the directory doesn't exist when the container starts, Docker
+creates it owned by root and the bridge can't use it. For the same reason, when
+uninstalling, also remove the `/data/claude-code/.images` volume from
+`docker-compose.yaml`.
+
 ## Rebuild
 
 ```sh
