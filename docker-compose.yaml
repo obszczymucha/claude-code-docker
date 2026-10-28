@@ -14,6 +14,10 @@ services:
     volumes:
       - ${PWD}:${PWD}
       - ~/.claude:/home/node/.claude
+      # Read-only so startup stale-lock cleanup can't delete host IDE locks:
+      # their PIDs are invisible in the container's PID namespace, so Claude
+      # treats them as dead and unlinks them (breaks nvim-first /ide).
+      - ~/.claude/ide:/home/node/.claude/ide:ro
       - ~/.claude.json:/home/node/.claude.json
       - /data/claude-code/tmp:/tmp
       # claude-code-docker-img-bridge share dir (host FIFO listener → floating
