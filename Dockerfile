@@ -2,6 +2,9 @@ FROM archlinux:latest
 ARG LUA_LS_VERSION=3.19.1
 
 # Add whatever tools you want to give claude.
+# node gets passwordless sudo for pacman only; the /usr/local/bin/pacman wrapper
+# makes plain `pacman -S foo` work. ponytail: pacman can run install hooks, so
+# this is effectively root for node; drop it if the container must stay unprivileged.
 RUN pacman -Syu --noconfirm --needed \
     git \
     ripgrep \
@@ -25,8 +28,13 @@ RUN pacman -Syu --noconfirm --needed \
     binutils \
     unzip \
     jdk17-openjdk \
+    sudo \
  && pacman -Scc --noconfirm \
  && useradd -m -u 1000 node \
+ && echo 'node ALL=(root) NOPASSWD: /usr/bin/pacman' > /etc/sudoers.d/node-pacman \
+ && chmod 440 /etc/sudoers.d/node-pacman \
+ && printf '#!/bin/sh\nexec sudo /usr/bin/pacman "$@"\n' > /usr/local/bin/pacman \
+ && chmod +x /usr/local/bin/pacman \
  && odin version
 
 # lua-language-server: prebuilt release tarball extracts flat, so give it its
