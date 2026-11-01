@@ -78,6 +78,22 @@ RUN curl -fsSLo /tmp/gradle.zip "https://services.gradle.org/distributions/gradl
  && chown -R node:node "$ANDROID_HOME" \
  && java -version && javac -version && gradle --version && adb version
 
+# kubectl and buildctl for k3s deploys (meross infra/deploy). Pinned to match
+# the cluster (k3s v1.36) and buildkitd (v0.34.1); bump together with them.
+# ponytail: x86_64 only, like the Android SDK above.
+ARG KUBECTL_VERSION=v1.36.5
+ARG KUBECTL_SHA256=33bc88a24c3b09cf55bfd59e6ca977881b61fc3f25ab65bc80c65b430248648e
+ARG BUILDKIT_VERSION=v0.34.1
+ARG BUILDKIT_SHA256=a59539daf547fe0958efe2d07e41c0a6944e1112a66d7e519ec1cf5b673ef15b
+RUN curl -fsSLo /usr/local/bin/kubectl "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" \
+ && echo "${KUBECTL_SHA256}  /usr/local/bin/kubectl" | sha256sum -c - \
+ && chmod +x /usr/local/bin/kubectl \
+ && curl -fsSLo /tmp/buildkit.tgz "https://github.com/moby/buildkit/releases/download/${BUILDKIT_VERSION}/buildkit-${BUILDKIT_VERSION}.linux-amd64.tar.gz" \
+ && echo "${BUILDKIT_SHA256}  /tmp/buildkit.tgz" | sha256sum -c - \
+ && tar -xzf /tmp/buildkit.tgz -C /usr/local bin/buildctl \
+ && rm /tmp/buildkit.tgz \
+ && kubectl version --client && buildctl --version
+
 # Software GL via Mesa llvmpipe; DISPLAY stays unset (agent runs its own Xvfb).
 ENV LIBGL_ALWAYS_SOFTWARE=1 \
     MESA_GL_VERSION_OVERRIDE=4.6
