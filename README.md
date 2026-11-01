@@ -33,6 +33,15 @@ This mounts `~/.projects/shared-lib` at the same path inside the container, and
 `~/notes` read-only at `/notes`. To check, run `claude-docker.sh` and ask Claude
 whether it can see `shared-lib`.
 
+Extra `/etc/hosts` entries go in `.claude-code-extra-hosts`, found the same way,
+one `hostname:ip` per line (like `docker run --add-host`). `#` comments and
+`$VARS` work.
+
+```sh
+# .claude-code-extra-hosts
+pi2:192.168.1.50
+```
+
 ## claude-code-docker-img-bridge
 
 Claude Code can't display images, so Claude shows them in a floating feh window
