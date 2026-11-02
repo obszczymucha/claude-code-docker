@@ -2,7 +2,7 @@
 
 Runs the Claude Code CLI in a container that can only touch explicitly mounted
 directories: the current directory, `~/.claude`, `~/.claude.json`, and any extra
-mounts defined in the `.claude-code-extra-mounts` file.
+mounts defined in the config file.
 
 Edit the `Dockerfile` to add or remove tools as needed.
 
@@ -17,30 +17,49 @@ Set `DOCKER_COMPOSE_FILE` in `claude-docker.sh` to this repo's `docker-compose.y
 Equivalent to running `claude` locally in the current directory (it adds
 `--permission-mode auto`).
 
-Extra mounts go in `.claude-code-extra-mounts` in the current directory or git
-worktree root, one `host:container` per line. `#` comments and `$VARS` work, and
-missing host paths are skipped. In a bare-repo worktree, the bare repo is mounted
-automatically so git works.
+Extra mounts and `/etc/hosts` entries go in
+`~/.config/claude-code-docker/config.json` (needs `jq`), keyed by project:
 
-Example:
-```sh
-# .claude-code-extra-mounts
-$HOME/.projects/shared-lib:$HOME/.projects/shared-lib
-$HOME/notes:/notes:ro
+```json
+{
+  "/home/alien/.projects/myproj/.git": {
+    "mounts": ["$HOME/.projects/shared-lib:$HOME/.projects/shared-lib", "$HOME/notes:/notes:ro"],
+    "hosts": ["pi2:192.168.1.50"]
+  }
+}
 ```
 
-This mounts `~/.projects/shared-lib` at the same path inside the container, and
-`~/notes` read-only at `/notes`. To check, run `claude-docker.sh` and ask Claude
-whether it can see `shared-lib`.
+The key is the bare repo dir in a bare repo or any of its worktrees (so all
+worktrees share it), the repo root in a regular git repo, otherwise `$PWD`.
+`mounts` are `host:container[:ro]`, `hosts` are `hostname:ip` (like
+`docker run --add-host`). `$VARS` work, and missing host paths are skipped. In a
+bare-repo worktree, the bare repo is mounted automatically so git works.
 
-Extra `/etc/hosts` entries go in `.claude-code-extra-hosts`, found the same way,
-one `hostname:ip` per line (like `docker run --add-host`). `#` comments and
-`$VARS` work.
+The config lives outside the projects on purpose: the project is mounted
+read-write, so a session could otherwise add mounts to the next one.
+
+To move old `.claude-code-extra-mounts` / `.claude-code-extra-hosts` files into
+the config (run on the host). It only lists the old files until you pass
+`--delete`:
 
 ```sh
-# .claude-code-extra-hosts
-pi2:192.168.1.50
+./migrate-extra-files.sh ~            # write config, list old files
+./migrate-extra-files.sh ~ --delete   # same, and delete them
 ```
+
+### Editing the config
+
+`tui/` is a small TUI for the config (run on the host):
+
+```sh
+cargo install --path tui --root ~/.local   # lands in ~/.local/bin
+claude-docker-config                 # TUI: type to filter, alt+a/e/d add/edit/delete, tab pane, esc quit
+claude-docker-config add .           # add the current project (same key rule as above)
+claude-docker-config add . --force   # add $PWD even inside a repo
+claude-docker-config add <path>      # add <path> as given
+```
+
+Mounts whose host path doesn't exist are shown in red, since they'd be skipped.
 
 ## claude-code-docker-img-bridge
 

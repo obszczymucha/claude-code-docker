@@ -5,6 +5,11 @@ set -euo pipefail
 # put this script somewhere where your $PATH has access to.
 DOCKER_COMPOSE_FILE="$HOME/.projects/ops/claude-code-docker/docker-compose.yaml"
 
+# Per-project extra mounts/hosts. Kept outside the projects on purpose: ${PWD}
+# is mounted read-write, so a file in the project could be edited by the
+# container to add mounts to the next one.
+CONFIG_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/claude-code-docker/config.json"
+
 is_git_bare_repo_worktree() {
   if [[ "$(git config --get core.bare)" == "true" ]]; then
     return 0
@@ -32,6 +37,25 @@ should_mount_git_bare_repo_parent_dir() {
 
 git_bare_repo_dir() {
   git rev-parse --git-common-dir
+}
+
+# Config key for $PWD: the bare repo dir in a bare repo or its worktree, the
+# repo root in a regular git repo, otherwise $PWD.
+project_key() {
+  local top
+  if is_bare_git_repository || is_git_bare_repo_worktree; then
+    git rev-parse --path-format=absolute --git-common-dir
+  elif top=$(git rev-parse --show-toplevel 2>/dev/null); then
+    echo "$top"
+  else
+    echo "$PWD"
+  fi
+}
+
+# $1: project key, $2: list name (mounts|hosts). One entry per line.
+config_entries() {
+  [[ -f "$CONFIG_FILE" ]] || return 0
+  jq -r --arg k "$1" --arg l "$2" '.[$k][$l][]? // empty' "$CONFIG_FILE"
 }
 
 yaml_squote() {
@@ -67,34 +91,18 @@ create_docker_compose_override_file() {
   echo "$override_file"
 }
 
-# $1: file name to look for in the worktree root.
-worktree_file_name() {
-  local worktree_dir
-  worktree_dir=$(git rev-parse --show-toplevel)
-  local file="$worktree_dir/$1"
-
-  if [[ -f "$file" ]]; then
-    echo "$file"
-  else
-    echo ""
-  fi
-}
-
 # Appends to caller's `hosts` array (bash dynamic scoping).
-# One `hostname:ip` per line, like docker's --add-host.
+# Reads one `hostname:ip` per line from stdin, like docker's --add-host.
 add_extra_hosts() {
-  local file="$1"
-
   while IFS= read -r line || [[ -n "$line" ]]; do
     [[ -z "$line" || "$line" == \#* ]] && continue
     hosts+=("$(envsubst <<<"$line")")
-  done < "$file"
+  done
 }
 
 # Appends to caller's `mounts` array (bash dynamic scoping).
+# Reads one `host:container` per line from stdin.
 add_extra_mounts() {
-  local file="$1"
-
   while IFS= read -r line || [[ -n "$line" ]]; do
     [[ -z "$line" || "$line" == \#* ]] && continue
 
@@ -112,41 +120,23 @@ add_extra_mounts() {
       bare_repo=$(cd "$host_path" && git_bare_repo_dir)
       mounts+=("$bare_repo:$bare_repo")
     fi
-  done < "$file"
+  done
 }
 
 main() {
   local mounts=()
   local hosts=()
-  local extra_mounts_file=""
-  local extra_hosts_file=""
 
   if should_mount_git_bare_repo_parent_dir; then
     local path
     path=$(git_bare_repo_dir)
     mounts+=("$path:$path")
-
-    extra_mounts_file=$(worktree_file_name .claude-code-extra-mounts)
-    extra_hosts_file=$(worktree_file_name .claude-code-extra-hosts)
-
-    if [[ -n "$extra_mounts_file" ]]; then
-      add_extra_mounts "$extra_mounts_file"
-    fi
-
-    if [[ -n "$extra_hosts_file" ]]; then
-      add_extra_hosts "$extra_hosts_file"
-    fi
   fi
 
-  local cwd_mounts_file="$PWD/.claude-code-extra-mounts"
-  if [[ -f "$cwd_mounts_file" && "$cwd_mounts_file" != "$extra_mounts_file" ]]; then
-    add_extra_mounts "$cwd_mounts_file"
-  fi
-
-  local cwd_hosts_file="$PWD/.claude-code-extra-hosts"
-  if [[ -f "$cwd_hosts_file" && "$cwd_hosts_file" != "$extra_hosts_file" ]]; then
-    add_extra_hosts "$cwd_hosts_file"
-  fi
+  local key
+  key=$(project_key)
+  add_extra_mounts < <(config_entries "$key" mounts)
+  add_extra_hosts < <(config_entries "$key" hosts)
 
   if [[ ${#mounts[@]} -gt 0 || ${#hosts[@]} -gt 0 ]]; then
     local override_file
@@ -157,4 +147,7 @@ main() {
   fi
 }
 
-main "$@"
+# Guarded so migrate-extra-files.sh can source the helpers.
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi
