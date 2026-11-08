@@ -202,13 +202,18 @@ impl Project {
         false
     }
 
+    /// Opens the directory finder for adding a mount.
+    pub(crate) fn add(&mut self) {
+        self.mode = finder(env::var("HOME").unwrap_or_default());
+    }
+
     fn normal(&mut self, code: KeyCode) -> bool {
         let at = self.at(self.sel);
         match code {
             KeyCode::Esc | KeyCode::Char('q') => return true,
             KeyCode::Down | KeyCode::Char('j') => self.sel += 1, // clamped in run
             KeyCode::Up | KeyCode::Char('k') => self.sel = self.sel.saturating_sub(1),
-            KeyCode::Char('a') => self.mode = finder(env::var("HOME").unwrap_or_default()),
+            KeyCode::Char('a') => self.add(),
             KeyCode::Char('h') => {
                 let (prefix, buf) = (String::new(), String::new());
                 self.mode = Mode::Input { list: 1, idx: None, prefix, buf, ro: false };
@@ -327,7 +332,7 @@ impl Project {
                     }
                     _ => (Line::from(s), Cell::from("")),
                 };
-                Row::new([Cell::from(format!(" {}", KINDS[list]).dark_gray()), mode, Cell::from(entry)])
+                Row::new([Cell::from([" m", " h"][list].dark_gray()), mode, Cell::from(entry)])
             })
             .collect();
         let block = Block::new().borders(Borders::TOP);
@@ -335,7 +340,7 @@ impl Project {
             f.render_widget(Paragraph::new("no entries".dark_gray()).block(block), body);
         } else {
             let mut state = TableState::default().with_selected(Some(self.sel));
-            let widths = [Constraint::Length(6), Constraint::Length(4), Constraint::Fill(1)];
+            let widths = [Constraint::Length(2), Constraint::Length(4), Constraint::Fill(1)];
             let table = Table::new(rows, widths)
                 .column_spacing(0) // " ro " pads itself
                 .block(block)

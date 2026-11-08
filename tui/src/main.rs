@@ -2,6 +2,7 @@
 //!   claude-docker-config                  edit the current repo's entries (bare repo dir / repo root / $PWD)
 //!   claude-docker-config --force          same, for $PWD even inside a repo
 //!   claude-docker-config --border         same, drawn inside a rounded border (for a borderless tmux pane)
+//!   claude-docker-config --add            same, starting in the add-mount finder
 //!   claude-docker-config manage           the all-projects TUI
 //!   claude-docker-config add <path>       add an entry for <path>
 //!   claude-docker-config add .            add the current repo (bare repo dir / repo root / $PWD)
@@ -21,7 +22,7 @@ use app::{App, Mode};
 use config::{Entry, config_path, load, save};
 use paths::resolve_key;
 
-const USAGE: &str = "usage: claude-docker-config [--force] [--border] | manage | add <path> [--force] | --test]";
+const USAGE: &str = "usage: claude-docker-config [--force] [--border] [--add] | manage | add <path> [--force] | --test]";
 
 fn die(msg: &str) -> ! {
     eprintln!("claude-docker-config: {msg}");
@@ -37,10 +38,11 @@ fn main() {
     }
     let force = args.iter().any(|a| a == "--force");
     let border = args.iter().any(|a| a == "--border");
+    let add = args.iter().any(|a| a == "--add");
     let rest: Vec<&str> = args
         .iter()
         .map(String::as_str)
-        .filter(|a| !matches!(*a, "--force" | "--border"))
+        .filter(|a| !matches!(*a, "--force" | "--border" | "--add"))
         .collect();
     let path = config_path();
     let mut cfg = load(&path).unwrap_or_else(|e| die(&e)); // never overwrite a config we can't parse
@@ -49,11 +51,14 @@ fn main() {
         [] => {
             let key = resolve_key(".", force);
             let mut p = project::Project::new(path, cfg, key, border);
+            if add {
+                p.add();
+            }
             if let Err(e) = ratatui::run(|t| p.run(t)) {
                 die(&e.to_string());
             }
         }
-        ["manage"] if !force && !border => {
+        ["manage"] if !force && !border && !add => {
             let mut app = App {
                 path,
                 cfg,
@@ -67,7 +72,7 @@ fn main() {
                 die(&e.to_string());
             }
         }
-        ["add", p] if !border => {
+        ["add", p] if !border && !add => {
             let key = resolve_key(p, force);
             if cfg.contains_key(&key) {
                 println!("already exists: {key}");
