@@ -97,7 +97,9 @@ impl Project {
     fn put(&mut self, list: usize, idx: Option<usize>, value: String) -> Result<(), String> {
         validate(list, &value)?;
         let l = self.cfg.get_mut(&self.key).unwrap().list_mut(list);
-        if l.iter().enumerate().any(|(j, s)| *s == value && idx != Some(j)) {
+        // Mounts differing only in ro/rw are the same mount.
+        let same = |s: &str| if list == 0 { split_ro(s).0 == split_ro(&value).0 } else { s == value };
+        if l.iter().enumerate().any(|(j, s)| same(s) && idx != Some(j)) {
             return Err("already in the list".into());
         }
         let i = match idx {
@@ -159,7 +161,7 @@ impl Project {
                 }
                 KeyCode::Tab => {
                     if let Some(d) = self.picked() {
-                        match self.put(0, None, format!("{d}:{d}")) {
+                        match self.put(0, None, format!("{d}:{d}:ro")) {
                             Ok(()) => self.mode = Mode::Normal,
                             Err(e) => self.status = e,
                         }
