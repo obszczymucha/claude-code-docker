@@ -33,15 +33,26 @@ fn cwd() -> PathBuf {
 }
 
 fn git(dir: &str, args: &[&str]) -> Option<String> {
-    let out = Command::new("git").args(args).current_dir(dir).stderr(Stdio::null()).output().ok()?;
-    out.status.success().then(|| String::from_utf8_lossy(&out.stdout).trim().to_string())
+    let out = Command::new("git")
+        .args(args)
+        .current_dir(dir)
+        .stderr(Stdio::null())
+        .output()
+        .ok()?;
+    out.status
+        .success()
+        .then(|| String::from_utf8_lossy(&out.stdout).trim().to_string())
 }
 
 /// Same rule as project_key in claude-docker.sh.
 fn detect_key(dir: &str) -> String {
     let is_true = |args: &[&str]| git(dir, args).as_deref() == Some("true");
-    if (is_true(&["rev-parse", "--is-bare-repository"]) || is_true(&["config", "--get", "core.bare"]))
-        && let Some(d) = git(dir, &["rev-parse", "--path-format=absolute", "--git-common-dir"])
+    if (is_true(&["rev-parse", "--is-bare-repository"])
+        || is_true(&["config", "--get", "core.bare"]))
+        && let Some(d) = git(
+            dir,
+            &["rev-parse", "--path-format=absolute", "--git-common-dir"],
+        )
     {
         return d;
     }
@@ -56,14 +67,20 @@ pub(crate) fn resolve_key(arg: &str, force: bool) -> String {
         _ => expand(arg),
     };
     let path = normalize(&cwd().join(arg_expanded));
-    if arg == "." && !force { detect_key(&path) } else { path }
+    if arg == "." && !force {
+        detect_key(&path)
+    } else {
+        path
+    }
 }
 
 /// `~` for $HOME, for display and fuzzy matching.
 pub(crate) fn tilde(k: &str) -> String {
     let home = env::var("HOME").unwrap_or_default();
     match k.strip_prefix(&home) {
-        Some(rest) if !home.is_empty() && (rest.is_empty() || rest.starts_with('/')) => format!("~{rest}"),
+        Some(rest) if !home.is_empty() && (rest.is_empty() || rest.starts_with('/')) => {
+            format!("~{rest}")
+        }
         _ => k.to_string(),
     }
 }

@@ -14,7 +14,7 @@ mod paths;
 use std::{env, process::exit};
 
 use app::{App, Mode};
-use config::{config_path, load, save, Entry};
+use config::{Entry, config_path, load, save};
 use paths::resolve_key;
 
 const USAGE: &str = "usage: claude-docker-config [add <path> [--force] | --test]";
@@ -32,7 +32,11 @@ fn main() {
         return println!("{picked}");
     }
     let force = args.iter().any(|a| a == "--force");
-    let rest: Vec<&str> = args.iter().map(String::as_str).filter(|a| *a != "--force").collect();
+    let rest: Vec<&str> = args
+        .iter()
+        .map(String::as_str)
+        .filter(|a| *a != "--force")
+        .collect();
     let path = config_path();
     let mut cfg = load(&path).unwrap_or_else(|e| die(&e)); // never overwrite a config we can't parse
 

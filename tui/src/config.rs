@@ -1,6 +1,11 @@
 //! The per-project config file claude-docker.sh reads, and checks on its entries.
 
-use std::{collections::BTreeMap, env, fs, io, net::IpAddr, path::{Path, PathBuf}};
+use std::{
+    collections::BTreeMap,
+    env, fs, io,
+    net::IpAddr,
+    path::{Path, PathBuf},
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -17,7 +22,11 @@ impl Entry {
         [&self.mounts, &self.hosts][i]
     }
     pub(crate) fn list_mut(&mut self, i: usize) -> &mut Vec<String> {
-        if i == 0 { &mut self.mounts } else { &mut self.hosts }
+        if i == 0 {
+            &mut self.mounts
+        } else {
+            &mut self.hosts
+        }
     }
 }
 

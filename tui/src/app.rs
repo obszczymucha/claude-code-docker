@@ -1,18 +1,21 @@
 //! The config editor TUI.
 
-use std::{io, path::{Path, PathBuf}};
+use std::{
+    io,
+    path::{Path, PathBuf},
+};
 
 use ratatui::{
+    DefaultTerminal, Frame,
     crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers},
     layout::{Constraint, Layout, Rect},
     style::{Color, Modifier, Style, Stylize},
     text::{Line, Span},
     widgets::{Block, List, ListItem, ListState, Paragraph},
-    DefaultTerminal, Frame,
 };
 
 use crate::{
-    config::{mount_missing, save, validate, Config},
+    config::{Config, mount_missing, save, validate},
     fuzzy::fuzzy,
     paths::{resolve_key, tilde},
 };
@@ -22,7 +25,11 @@ const LISTS: [&str; 2] = ["mounts", "hosts"];
 
 pub(crate) enum Mode {
     Normal,
-    Input { prompt: &'static str, buf: String, edit: bool },
+    Input {
+        prompt: &'static str,
+        buf: String,
+        edit: bool,
+    },
     ConfirmDelete,
 }
 
@@ -178,7 +185,11 @@ impl App {
                     self.mode = Mode::ConfirmDelete;
                 } else {
                     let k = self.key().unwrap();
-                    self.cfg.get_mut(&k).unwrap().list_mut(f - 1).remove(self.sel[f]);
+                    self.cfg
+                        .get_mut(&k)
+                        .unwrap()
+                        .list_mut(f - 1)
+                        .remove(self.sel[f]);
                     self.save();
                 }
             }
@@ -199,7 +210,9 @@ impl App {
     }
 
     fn submit(&mut self) {
-        let Mode::Input { buf, edit, .. } = &self.mode else { return };
+        let Mode::Input { buf, edit, .. } = &self.mode else {
+            return;
+        };
         let (input, edit) = (buf.trim().to_string(), *edit);
         let f = self.focus;
         if input.is_empty() {
@@ -225,7 +238,11 @@ impl App {
             }
             let (k, i) = (self.key().unwrap(), self.sel[f]);
             let list = self.cfg.get_mut(&k).unwrap().list_mut(f - 1);
-            if list.iter().enumerate().any(|(j, s)| *s == input && !(edit && j == i)) {
+            if list
+                .iter()
+                .enumerate()
+                .any(|(j, s)| *s == input && !(edit && j == i))
+            {
                 self.status = "already in the list".into();
                 return;
             }
@@ -241,27 +258,46 @@ impl App {
     }
 
     fn draw(&self, f: &mut Frame) {
-        let [main, bottom] = Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).areas(f.area());
-        let [left, right] = Layout::horizontal([Constraint::Percentage(40), Constraint::Percentage(60)]).areas(main);
-        let [top, bot] = Layout::vertical([Constraint::Percentage(60), Constraint::Percentage(40)]).areas(right);
+        let [main, bottom] =
+            Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).areas(f.area());
+        let [left, right] =
+            Layout::horizontal([Constraint::Percentage(40), Constraint::Percentage(60)])
+                .areas(main);
+        let [top, bot] =
+            Layout::vertical([Constraint::Percentage(60), Constraint::Percentage(40)]).areas(right);
 
-        let [filter_box, left] = Layout::vertical([Constraint::Length(3), Constraint::Min(0)]).areas(left);
+        let [filter_box, left] =
+            Layout::vertical([Constraint::Length(3), Constraint::Min(0)]).areas(left);
         let visible = self.visible();
         let title = format!(" filter {}/{} ", visible.len(), self.cfg.len());
-        f.render_widget(Paragraph::new(self.filter.as_str()).block(Block::bordered().title(title)), filter_box);
+        f.render_widget(
+            Paragraph::new(self.filter.as_str()).block(Block::bordered().title(title)),
+            filter_box,
+        );
         if matches!(self.mode, Mode::Normal) {
             let x = filter_box.x + 1 + self.filter.chars().count() as u16;
-            f.set_cursor_position((x.min(filter_box.right().saturating_sub(2)), filter_box.y + 1));
+            f.set_cursor_position((
+                x.min(filter_box.right().saturating_sub(2)),
+                filter_box.y + 1,
+            ));
         }
 
         let projects = visible.iter().map(|(k, hits)| {
             let e = &self.cfg[*k];
-            let base = if Path::new(k).exists() { Style::new() } else { Style::new().red() };
+            let base = if Path::new(k).exists() {
+                Style::new()
+            } else {
+                Style::new().red()
+            };
             let mut spans: Vec<Span> = tilde(k)
                 .chars()
                 .enumerate()
                 .map(|(i, c)| {
-                    let style = if hits.contains(&i) { base.yellow().bold() } else { base };
+                    let style = if hits.contains(&i) {
+                        base.yellow().bold()
+                    } else {
+                        base
+                    };
                     Span::styled(c.to_string(), style)
                 })
                 .collect();
@@ -313,12 +349,25 @@ impl App {
     fn list(&self, f: &mut Frame, area: Rect, title: &str, items: Vec<ListItem>, pane: usize) {
         let focused = self.focus == pane;
         let n = items.len();
-        let border = if focused { Style::new().fg(Color::Yellow) } else { Style::new() };
-        let highlight = if focused { Style::new().add_modifier(Modifier::REVERSED) } else { Style::new().bold() };
+        let border = if focused {
+            Style::new().fg(Color::Yellow)
+        } else {
+            Style::new()
+        };
+        let highlight = if focused {
+            Style::new().add_modifier(Modifier::REVERSED)
+        } else {
+            Style::new().bold()
+        };
         let list = List::new(items)
-            .block(Block::bordered().title(format!(" {title} ")).border_style(border))
+            .block(
+                Block::bordered()
+                    .title(format!(" {title} "))
+                    .border_style(border),
+            )
             .highlight_style(highlight);
-        let mut state = ListState::default().with_selected((n > 0).then(|| self.sel[pane].min(n - 1)));
+        let mut state =
+            ListState::default().with_selected((n > 0).then(|| self.sel[pane].min(n - 1)));
         f.render_stateful_widget(list, area, &mut state);
     }
 }
