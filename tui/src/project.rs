@@ -19,12 +19,11 @@ use ratatui::{
 };
 
 use crate::{
+    dialog,
     config::{Config, mount_missing, save, validate},
     fuzzy::{fuzzy, highlight},
     paths::{resolve_key, tilde},
 };
-
-const KINDS: [&str; 2] = ["mount", "host"];
 
 enum Mode {
     Normal,
@@ -33,7 +32,8 @@ enum Mode {
     /// the container path without `:ro`, which is kept in `ro`.
     Input { list: usize, idx: Option<usize>, prefix: String, buf: String, ro: bool },
     /// A popup asking before deleting entry `idx` of `list`.
-    Confirm { list: usize, idx: usize },
+    /// `yes` is the focused button.
+    Confirm { list: usize, idx: usize, yes: bool },
     /// `dirs` holds `root` itself first, then the dirs under it.
     Finder { root: String, dirs: Vec<String>, query: String, sel: usize },
 }
@@ -188,8 +188,22 @@ impl Project {
                 }
                 _ => {}
             },
-            Mode::Confirm { list, idx } => {
-                if code == KeyCode::Char('y') {
+            Mode::Confirm { list, idx, yes } => {
+                let delete = match code {
+                    KeyCode::Tab | KeyCode::BackTab | KeyCode::Left | KeyCode::Right => {
+                        *yes = !*yes;
+                        return false;
+                    }
+                    KeyCode::Char('h' | 'l') => {
+                        *yes = !*yes;
+                        return false;
+                    }
+                    KeyCode::Enter => *yes,
+                    KeyCode::Char('y') => true,
+                    KeyCode::Char('n') | KeyCode::Esc => false,
+                    _ => return false,
+                };
+                if delete {
                     self.cfg.get_mut(&self.key).unwrap().list_mut(*list).remove(*idx);
                     if let Err(e) = save(&self.path, &self.cfg) {
                         self.status = format!("save failed: {e}");
@@ -245,7 +259,7 @@ impl Project {
             }
             KeyCode::Char('d') => {
                 if let Some((list, idx)) = at {
-                    self.mode = Mode::Confirm { list, idx };
+                    self.mode = Mode::Confirm { list, idx, yes: false }; // No first: Enter is safe
                 }
             }
             _ => {}
@@ -303,7 +317,7 @@ impl Project {
         ])
         .areas(area);
 
-        f.render_widget(Paragraph::new(tilde(&self.key).bold()), head);
+        f.render_widget(Paragraph::new(tilde(&self.key).white().bold()), head);
 
         let rows: Vec<Row> = (0..self.rows())
             .map(|r| {
@@ -321,11 +335,13 @@ impl Project {
                             Line::from(base)
                         };
                         (entry, {
-                            // The highlight reverses, so on the selected row this
-                            // gives mount's grey background with white text.
-                            let style = match r == self.sel {
-                                true => Style::new().dark_gray().on_white(),
-                                false => Style::new().white(),
+                            // "ro" styled exactly like the m label. "rw" is white; the
+                            // highlight reverses, so on the selected row it gets the
+                            // label's grey background with white text.
+                            let style = match (ro, r == self.sel) {
+                                (true, _) => Style::new().dark_gray(),
+                                (false, true) => Style::new().dark_gray().on_white(),
+                                (false, false) => Style::new().white(),
                             };
                             Cell::from(if ro { " ro " } else { " rw " }).style(style)
                         })
@@ -360,7 +376,7 @@ impl Project {
                 "a add mount  h add host  e/enter edit  tab ro/rw  d delete  ↑↓/jk move  q quit".dark_gray()
             }
             Mode::Input { .. } => "enter save  ctrl+u clear  esc cancel".dark_gray(),
-            Mode::Confirm { .. } => "y delete  any other key cancel".dark_gray(),
+            Mode::Confirm { .. } => "tab switch  enter pick  y yes  n/esc no".dark_gray(),
             Mode::Finder { .. } => {
                 "type to filter  ↑↓/alt+j/k move  enter open  backspace up  tab add  esc cancel"
                     .dark_gray()
@@ -370,14 +386,23 @@ impl Project {
 
         match &self.mode {
             Mode::Normal => {}
-            Mode::Confirm { list, idx } => {
-                let entry = &self.lists()[*list][*idx];
-                let text = format!("delete {} {}? y/n", KINDS[*list], split_ro(entry).0);
-                let w = (text.chars().count() as u16 + 4).min(body.width);
-                let area = body.centered(Constraint::Length(w), Constraint::Length(3));
+            Mode::Confirm { yes, .. } => {
+                // Like the `--test` dialog: caption, gap, Yes/No buttons.
+                let text = "Are you sure?";
+                let w = 30.min(body.width);
+                let area = body.centered(Constraint::Length(w), Constraint::Length(5));
                 let block = Block::bordered().border_type(BorderType::Rounded);
+                let inner = block.inner(area);
                 f.render_widget(Clear, area);
-                f.render_widget(Paragraph::new(text).centered().block(block), area);
+                f.render_widget(block, area);
+                let [caption, _, row] = Layout::vertical([
+                    Constraint::Length(1),
+                    Constraint::Min(0),
+                    Constraint::Length(1),
+                ])
+                .areas(inner);
+                f.render_widget(Paragraph::new(text.white()).centered(), caption);
+                dialog::buttons(f, row, &["Yes", "No"], if *yes { 0 } else { 1 });
             }
             Mode::Input { buf, .. } => {
                 let area = body.centered(Constraint::Percentage(80), Constraint::Length(3));
@@ -398,7 +423,14 @@ impl Project {
                 let block = Block::bordered()
                     .border_type(BorderType::Rounded)
                     // Trailing ─ keeps one dash between the count and the corner.
-                    .title(Line::from(format!(" {}/{} ─", m.len(), dirs.len())).right_aligned());
+                    .title(
+                        Line::from(vec![
+                            " ".into(),
+                            format!("{}/{}", m.len(), dirs.len()).white(),
+                            " ─".into(),
+                        ])
+                        .right_aligned(),
+                    );
                 let inner = block.inner(area);
                 f.render_widget(Clear, area);
                 f.render_widget(block, area);
@@ -413,17 +445,21 @@ impl Project {
                 f.render_widget(Paragraph::new(sep_line), Rect { x: area.x, width: area.width, ..sep });
                 let prompt = format!("{}/ ", tilde(root).trim_end_matches('/'));
                 let x = q.x + (prompt.chars().count() + query.chars().count()) as u16;
-                f.render_widget(Paragraph::new(Line::from(vec![prompt.dark_gray(), query.into()])), q);
+                f.render_widget(Paragraph::new(Line::from(vec![prompt.white().bold(), query.as_str().white()])), q);
                 f.set_cursor_position((x.min(q.right().saturating_sub(1)), q.y));
+                let picked = (*sel).min(m.len().saturating_sub(1));
                 let items: Vec<ListItem> = m
                     .iter()
-                    .map(|(d, hits)| {
-                        ListItem::new(Line::from(highlight(rel(root, d), hits, Style::new())))
+                    .enumerate()
+                    .map(|(i, (d, hits))| {
+                        // Default colour on the selected row, so the reversed
+                        // highlight matches the main list's, not a white bar.
+                        let base = if i == picked { Style::new() } else { Style::new().white() };
+                        ListItem::new(Line::from(highlight(rel(root, d), hits, base)))
                     })
                     .collect();
                 let n = items.len();
-                let mut state =
-                    ListState::default().with_selected((n > 0).then(|| (*sel).min(n - 1)));
+                let mut state = ListState::default().with_selected((n > 0).then_some(picked));
                 let list_w = List::new(items).highlight_style(Style::new().reversed());
                 f.render_stateful_widget(list_w, list, &mut state);
             }

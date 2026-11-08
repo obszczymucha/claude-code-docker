@@ -1,9 +1,10 @@
-//! `--test`: a small OK/Cancel dialog, meant for a tmux floating pane.
+//! `--test`: a small OK/Cancel dialog, meant for a tmux floating pane, and
+//! its buttons, shared with the delete popup.
 
 use std::io;
 
 use ratatui::{
-    Terminal,
+    Frame, Terminal,
     backend::CrosstermBackend,
     crossterm::{
         cursor,
@@ -11,7 +12,7 @@ use ratatui::{
         execute,
         terminal::{self, EnterAlternateScreen, LeaveAlternateScreen},
     },
-    layout::{Constraint, Flex, Layout},
+    layout::{Constraint, Flex, Layout, Rect},
     style::Style,
     widgets::{Block, BorderType, Paragraph},
 };
@@ -29,6 +30,23 @@ pub(crate) fn run() -> io::Result<&'static str> {
     picked
 }
 
+/// Buttons centred in `row`, the focused one yellow.
+pub(crate) fn buttons(f: &mut Frame, row: Rect, labels: &[&str; 2], focus: usize) {
+    // Two spaces either side of each label, so it centres evenly.
+    let areas: [Rect; 2] = Layout::horizontal(labels.map(|l| Constraint::Length(l.len() as u16 + 4)))
+        .flex(Flex::Center)
+        .spacing(2)
+        .areas(row);
+    for (i, (label, area)) in labels.iter().zip(areas).enumerate() {
+        let style = if i == focus {
+            Style::new().black().on_yellow()
+        } else {
+            Style::new().reversed()
+        };
+        f.render_widget(Paragraph::new(*label).centered().style(style), area);
+    }
+}
+
 /// Tab switches buttons, Enter picks the focused one, Esc/Ctrl+C mean Cancel.
 fn ui(t: &mut Terminal<CrosstermBackend<io::Stderr>>) -> io::Result<&'static str> {
     let mut focus = 0;
@@ -44,18 +62,7 @@ fn ui(t: &mut Terminal<CrosstermBackend<io::Stderr>>) -> io::Result<&'static str
             ])
             .areas(inner);
             f.render_widget(Paragraph::new("Princess Kenny").centered(), caption);
-            let [ok, cancel] = Layout::horizontal([Constraint::Length(8); 2])
-                .flex(Flex::Center)
-                .spacing(2)
-                .areas(row);
-            for (i, (label, area)) in BUTTONS.into_iter().zip([ok, cancel]).enumerate() {
-                let style = if i == focus {
-                    Style::new().black().on_yellow()
-                } else {
-                    Style::new().reversed()
-                };
-                f.render_widget(Paragraph::new(label).centered().style(style), area);
-            }
+            buttons(f, row, &BUTTONS, focus);
         })?;
         if let Event::Key(k) = event::read()? {
             match k.code {
