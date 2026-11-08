@@ -16,7 +16,7 @@ use ratatui::{
 
 use crate::{
     config::{Config, mount_missing, save, validate},
-    fuzzy::fuzzy,
+    fuzzy::{fuzzy, highlight},
     paths::{resolve_key, tilde},
 };
 
@@ -289,18 +289,7 @@ impl App {
             } else {
                 Style::new().red()
             };
-            let mut spans: Vec<Span> = tilde(k)
-                .chars()
-                .enumerate()
-                .map(|(i, c)| {
-                    let style = if hits.contains(&i) {
-                        base.yellow().bold()
-                    } else {
-                        base
-                    };
-                    Span::styled(c.to_string(), style)
-                })
-                .collect();
+            let mut spans = highlight(&tilde(k), hits, base);
             spans.push(Span::raw(format!("  {}m {}h", e.mounts.len(), e.hosts.len())).dark_gray());
             ListItem::new(Line::from(spans))
         });

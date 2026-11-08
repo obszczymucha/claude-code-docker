@@ -53,7 +53,10 @@ the config (run on the host). It only lists the old files until you pass
 
 ```sh
 cargo install --path tui --root ~/.local   # lands in ~/.local/bin
-claude-docker-config                 # TUI: type to filter, alt+a/e/d add/edit/delete, tab pane, esc quit
+install -m755 tui/run.sh ~/.local/bin/ccm  # ccm: the project TUI in a floating tmux pane
+claude-docker-config                 # TUI for the current project: a add mount (fuzzy dir finder), h add host, e edit, d delete
+claude-docker-config --force         # same, for $PWD even inside a repo
+claude-docker-config manage          # TUI for all projects: type to filter, alt+a/e/d add/edit/delete, tab pane, esc quit
 claude-docker-config add .           # add the current project (same key rule as above)
 claude-docker-config add . --force   # add $PWD even inside a repo
 claude-docker-config add <path>      # add <path> as given

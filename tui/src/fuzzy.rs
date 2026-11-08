@@ -1,4 +1,6 @@
-//! fzf-style fuzzy matching for the project filter.
+//! fzf-style fuzzy matching for the project filter and the directory finder.
+
+use ratatui::{style::Style, text::Span};
 
 /// fzf-style: every space-separated term must match as a subsequence; smart
 /// case. Returns a score (higher is better) and the matched char indices.
@@ -27,6 +29,17 @@ pub(crate) fn fuzzy(query: &str, text: &str) -> Option<(i64, Vec<usize>)> {
     hits.sort_unstable();
     hits.dedup();
     Some((score, hits))
+}
+
+/// `text` as spans, matched chars bold yellow on top of `base`.
+pub(crate) fn highlight(text: &str, hits: &[usize], base: Style) -> Vec<Span<'static>> {
+    text.chars()
+        .enumerate()
+        .map(|(i, c)| {
+            let style = if hits.contains(&i) { base.yellow().bold() } else { base };
+            Span::styled(c.to_string(), style)
+        })
+        .collect()
 }
 
 #[cfg(test)]
