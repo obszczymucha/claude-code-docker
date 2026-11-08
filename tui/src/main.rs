@@ -1,6 +1,7 @@
 //! Edits claude-docker.sh's per-project extra mounts/hosts config.
 //!   claude-docker-config                  edit the current repo's entries (bare repo dir / repo root / $PWD)
 //!   claude-docker-config --force          same, for $PWD even inside a repo
+//!   claude-docker-config --path <dir>     use <dir> instead of $PWD (also applies to `add`)
 //!   claude-docker-config --border         same, drawn inside a rounded border (for a borderless tmux pane)
 //!   claude-docker-config --add            same, starting in the add-mount finder
 //!   claude-docker-config manage           the all-projects TUI
@@ -22,7 +23,7 @@ use app::{App, Mode};
 use config::{Entry, config_path, load, save};
 use paths::resolve_key;
 
-const USAGE: &str = "usage: claude-docker-config [--force] [--border] [--add] | manage | add <path> [--force] | --test]";
+const USAGE: &str = "usage: claude-docker-config [--path <dir>] [--force] [--border] [--add] | manage | [--path <dir>] add <path> [--force] | --test]";
 
 fn die(msg: &str) -> ! {
     eprintln!("claude-docker-config: {msg}");
@@ -30,11 +31,22 @@ fn die(msg: &str) -> ! {
 }
 
 fn main() {
-    let args: Vec<String> = env::args().skip(1).collect();
+    let mut args: Vec<String> = env::args().skip(1).collect();
     if args == ["--test"] {
         // Drawn on stderr, so stdout carries only the pick (`> file`, `$(...)`).
         let picked = dialog::run().unwrap_or_else(|e| die(&e.to_string()));
         return println!("{picked}");
+    }
+    let has_path = args.iter().any(|a| a == "--path");
+    if let Some(i) = args.iter().position(|a| a == "--path") {
+        let Some(dir) = args.get(i + 1).map(|d| resolve_key(d, true)) else {
+            eprintln!("{USAGE}");
+            exit(2);
+        };
+        args.drain(i..=i + 1);
+        env::set_current_dir(&dir).unwrap_or_else(|e| die(&format!("{dir}: {e}")));
+        // SAFETY: still single-threaded here. PWD keeps symlinks, see paths::cwd.
+        unsafe { env::set_var("PWD", &dir) };
     }
     let force = args.iter().any(|a| a == "--force");
     let border = args.iter().any(|a| a == "--border");
@@ -58,7 +70,7 @@ fn main() {
                 die(&e.to_string());
             }
         }
-        ["manage"] if !force && !border && !add => {
+        ["manage"] if !force && !border && !add && !has_path => {
             let mut app = App {
                 path,
                 cfg,
