@@ -135,6 +135,15 @@ main() {
 
   local key
   key=$(project_key)
+
+  # Writable extra mounts: make the user review them in ccm first. Entries are
+  # read below, after ccm, so changes made there (e.g. to :ro) take effect.
+  if [[ -f "$CONFIG_FILE" ]] && jq -e --arg k "$key" \
+    'any(.[$k].mounts[]?; (. == "" or startswith("#") or endswith(":ro")) | not)' \
+    "$CONFIG_FILE" >/dev/null; then
+    ccm --wait || { echo "ccm failed, not starting claude." >&2; exit 1; }
+  fi
+
   add_extra_mounts < <(config_entries "$key" mounts)
   add_extra_hosts < <(config_entries "$key" hosts)
 
