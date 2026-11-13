@@ -3,7 +3,8 @@ set -euo pipefail
 
 # Adjust this to where the docker-compose.yaml lives and you can
 # put this script somewhere where your $PATH has access to.
-DOCKER_COMPOSE_FILE="$HOME/.projects/ops/claude-code-docker/docker-compose.yaml"
+source "$HOME/.dotfiles/current/zshrc/llm.sh"
+DOCKER_COMPOSE_FILE="$CLAUDE_CODE_DOCKER_DIR/docker-compose.yaml"
 
 # Per-project extra mounts/hosts. Kept outside the projects on purpose: ${PWD}
 # is mounted read-write, so a file in the project could be edited by the
