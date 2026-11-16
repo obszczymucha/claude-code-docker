@@ -21,6 +21,7 @@ RUN pacman -Syu --noconfirm --needed \
     npm \
     clang \
     odin \
+    godot \
     libx11 libxrandr libxinerama libxcursor libxi \
     mesa mesa-utils \
     xorg-server-xvfb xorg-xdpyinfo \
