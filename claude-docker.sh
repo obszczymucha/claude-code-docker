@@ -3,6 +3,7 @@ set -euo pipefail
 
 # Adjust this to where the docker-compose.yaml lives and you can
 # put this script somewhere where your $PATH has access to.
+# shellcheck disable=SC1091
 source "$HOME/.dotfiles/current/zshrc/llm.sh"
 DOCKER_COMPOSE_FILE="$CLAUDE_CODE_DOCKER_DIR/docker-compose.yaml"
 
