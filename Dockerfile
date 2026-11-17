@@ -20,6 +20,7 @@ RUN pacman -Syu --noconfirm --needed \
     nodejs \
     npm \
     clang \
+    make \
     odin \
     godot \
     libx11 libxrandr libxinerama libxcursor libxi \
