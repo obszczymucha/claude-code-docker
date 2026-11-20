@@ -23,6 +23,7 @@ RUN pacman -Syu --noconfirm --needed \
     make \
     odin \
     godot \
+    blender \
     libx11 libxrandr libxinerama libxcursor libxi \
     mesa mesa-utils \
     xorg-server-xvfb xorg-xdpyinfo \
